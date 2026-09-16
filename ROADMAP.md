@@ -134,13 +134,23 @@ and the user can rename them from the HA UI.
 
 | Entity | Class / unit | Notes |
 |---|---|---|
-| `sensor.<route>_duration` | duration, min | Current drive time with live traffic |
-| `sensor.<route>_duration_typical` | duration, min | `noTrafficTravelTimeInSeconds` — the free-flow baseline |
-| `sensor.<route>_delay` | duration, min | `trafficDelayInSeconds`; the number most automations will key off |
+| `sensor.<route>_duration` | duration, min | Current drive time with live traffic (`travelTimeInSeconds`) |
+| `sensor.<route>_duration_typical` | duration, min | `noTrafficTravelTimeInSeconds` — the absolute free-flow baseline |
+| `sensor.<route>_delay` | duration, min | `duration − duration_typical`. How much longer than best-case, right now — the number most automations should key off |
+| `sensor.<route>_incident_delay` | duration, min | `trafficDelayInSeconds` as TomTom defines it: delay from incidents *relative to the historic norm for this time of day*, not relative to free-flow. Usually 0; moves for accidents/closures/abnormal congestion |
 | `sensor.<route>_distance` | distance, km/mi | Follows the configured unit system |
 | `sensor.<route>_eta` | timestamp | Arrival time if leaving now; HA renders this as a live countdown |
-| `sensor.<route>_traffic_level` | enum | `free_flow` / `light` / `moderate` / `heavy`, derived from delay ÷ typical |
+| `sensor.<route>_traffic_level` | enum | `free_flow` / `light` / `moderate` / `heavy`, derived from `_delay` ÷ `_duration_typical` |
 | `sensor.api_requests_remaining` | diagnostic | Budget guard; one per add-on, not per route |
+
+**Correction from the original draft:** `trafficDelayInSeconds` was initially assumed to be
+"delay vs. free-flow" and slated as the primary `_delay` sensor. Live testing against a real
+route (Magnolia, TX → Spring, TX) showed it's actually delay from incidents *relative to the
+historic-typical time for that hour* — it reads 0 during ordinary rush-hour congestion and only
+moves for genuinely abnormal conditions. That's a real and useful signal, but not what most
+users mean by "is there traffic right now," so `_delay` is now computed client-side as
+`duration − duration_typical`, and the raw TomTom field ships as a separate `_incident_delay`
+sensor for automations that specifically want to know about abnormal events.
 
 Shared attributes on `_duration`: `route_name`, `origin`, `destination`, `avoid_tolls`,
 `polyline` (so map cards can draw it), `last_updated`, `stale`, `in_active_window`.
@@ -148,8 +158,8 @@ Shared attributes on `_duration`: `route_name`, `origin`, `destination`, `avoid_
 Availability is published on a shared status topic with an MQTT Last Will, so entities go
 `unavailable` rather than silently stale if the add-on dies.
 
-`traffic_level` thresholds, as delay over typical time: under 5% is `free_flow`, under 20%
-`light`, under 50% `moderate`, above that `heavy`.
+`traffic_level` thresholds, as `_delay` over `_duration_typical`: under 5% is `free_flow`,
+under 20% `light`, under 50% `moderate`, above that `heavy`.
 
 ---
 
