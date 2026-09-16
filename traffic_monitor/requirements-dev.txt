@@ -1,0 +1,6 @@
+# Test-only dependencies. Not installed in the shipped image -- see Dockerfile,
+# which installs only app/requirements.txt.
+-r app/requirements.txt
+pytest==9.1.1
+pytest-asyncio==1.4.0
+respx==0.23.1

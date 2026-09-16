@@ -1,0 +1,12 @@
+{
+  "summary": {
+    "query": "zzqxnonexistentplace123456",
+    "queryType": "NON_NEAR",
+    "queryTime": 67,
+    "numResults": 0,
+    "offset": 0,
+    "totalResults": 0,
+    "fuzzyLevel": 2
+  },
+  "results": []
+}

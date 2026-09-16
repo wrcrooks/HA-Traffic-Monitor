@@ -1,0 +1,67 @@
+{
+  "summary": {
+    "query": "22777 springwoods village pkwy spring tx 77389",
+    "queryType": "NON_NEAR",
+    "queryTime": 91,
+    "numResults": 1,
+    "offset": 0,
+    "totalResults": 1,
+    "fuzzyLevel": 1
+  },
+  "results": [
+    {
+      "type": "Point Address",
+      "id": "XhFoT5sHgCoPXB0EZTLaow",
+      "score": 14.1499500275,
+      "matchConfidence": {
+        "score": 1
+      },
+      "address": {
+        "streetNumber": "22777",
+        "streetName": "Springwoods Village Parkway",
+        "municipality": "Spring",
+        "countrySecondarySubdivision": "Harris",
+        "countrySubdivision": "TX",
+        "countrySubdivisionName": "Texas",
+        "countrySubdivisionCode": "TX",
+        "postalCode": "77389",
+        "extendedPostalCode": "77389-1425",
+        "countryCode": "US",
+        "country": "United States",
+        "countryCodeISO3": "USA",
+        "freeformAddress": "22777 Springwoods Village Parkway, Spring, TX 77389",
+        "localName": "Spring"
+      },
+      "position": {
+        "lat": 30.1025496,
+        "lon": -95.4463921
+      },
+      "viewport": {
+        "topLeftPoint": {
+          "lat": 30.1075,
+          "lon": -95.45212
+        },
+        "btmRightPoint": {
+          "lat": 30.0976,
+          "lon": -95.44067
+        }
+      },
+      "entryPoints": [
+        {
+          "type": "main",
+          "position": {
+            "lat": 30.09791,
+            "lon": -95.44822
+          }
+        },
+        {
+          "type": "minor",
+          "position": {
+            "lat": 30.09805,
+            "lon": -95.44878
+          }
+        }
+      ]
+    }
+  ]
+}

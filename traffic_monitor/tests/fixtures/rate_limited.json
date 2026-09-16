@@ -1,0 +1,7 @@
+{
+  "_fixture_note": "SYNTHETIC. Unlike the other fixtures in this directory, this was not captured from a live TomTom response -- deliberately triggering a real 429 against a working key isn't something to do just for a test fixture. Shaped to match TomTom's documented detailedError envelope (confirmed real via auth_error.json), but the exact 'code' value here is a guess. The provider's control flow keys off the HTTP status code (429) only, never off this body, so that guess doesn't affect correctness.",
+  "detailedError": {
+    "code": "TOO_MANY_REQUESTS",
+    "message": "Rate limit exceeded"
+  }
+}

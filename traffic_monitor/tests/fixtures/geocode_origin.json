@@ -1,0 +1,50 @@
+{
+  "summary": {
+    "query": "decker farms magnolia tx 77355",
+    "queryType": "NON_NEAR",
+    "queryTime": 55,
+    "numResults": 1,
+    "offset": 0,
+    "totalResults": 2,
+    "fuzzyLevel": 1
+  },
+  "results": [
+    {
+      "type": "Street",
+      "id": "JHrm55NiZNbR7hxKPCyboQ",
+      "score": 10.1808624268,
+      "matchConfidence": {
+        "score": 1
+      },
+      "address": {
+        "streetName": "Decker Farms Lane",
+        "municipality": "Magnolia",
+        "countrySecondarySubdivision": "Montgomery",
+        "countrySubdivision": "TX",
+        "countrySubdivisionName": "Texas",
+        "countrySubdivisionCode": "TX",
+        "postalCode": "77355",
+        "extendedPostalCode": "77355-4377",
+        "countryCode": "US",
+        "country": "United States",
+        "countryCodeISO3": "USA",
+        "freeformAddress": "Decker Farms Lane, Magnolia, TX 77355",
+        "localName": "Magnolia"
+      },
+      "position": {
+        "lat": 30.1189912,
+        "lon": -95.6744238
+      },
+      "viewport": {
+        "topLeftPoint": {
+          "lat": 30.11966,
+          "lon": -95.67641
+        },
+        "btmRightPoint": {
+          "lat": 30.11895,
+          "lon": -95.67273
+        }
+      }
+    }
+  ]
+}
