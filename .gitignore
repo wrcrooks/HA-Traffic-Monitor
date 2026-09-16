@@ -1,0 +1,15 @@
+# Python
+__pycache__/
+*.pyc
+.pytest_cache/
+.venv/
+venv/
+
+# Add-on runtime data (never ship real user data/keys)
+traffic_monitor/data/
+*.env
+
+# Editor / OS
+.vscode/
+.DS_Store
+Thumbs.db
