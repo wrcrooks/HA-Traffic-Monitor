@@ -89,3 +89,16 @@ class RouteAlternative(BaseModel):
 class RouteCalculation(BaseModel):
     routes: list[RouteAlternative]
     queried_at: datetime
+
+
+class RouteConfig(BaseModel):
+    """M2's temporary single-route config, sourced directly from add-on
+    options. Replaced by the multi-route /data/routes.json model in M3
+    (ROADMAP.md) -- route_id will become a generated slug rather than a
+    fixed constant once there can be more than one."""
+
+    route_id: str
+    name: str
+    origin_address: str
+    destination_address: str
+    avoid_tolls: bool = False

@@ -1,6 +1,6 @@
 ---
 name: "Traffic Monitor"
-version: "0.1.0"
+version: "0.2.0"
 slug: "traffic_monitor"
 description: "Monitor drive time and live traffic for routes you define, with a map UI for picking among alternatives."
 url: "https://github.com/wrcrooks/HA-Traffic-Monitor"
@@ -23,7 +23,25 @@ options:
   api_key: ""
   unit_system: "metric"
   log_level: "info"
+  # M2 placeholder: one hardcoded route, until M3 replaces this with the
+  # full multi-route UI backed by /data/routes.json (see ROADMAP.md).
+  route_name: "My Commute"
+  route_origin: null
+  route_destination: null
+  route_avoid_tolls: false
+  route_poll_interval_minutes: 15
 schema:
   api_key: "password"
   unit_system: "list(metric|imperial)"
   log_level: "list(trace|debug|info|notice|warning|error|fatal)"
+  # Optional manual MQTT override -- normally auto-discovered via the
+  # mqtt:want service below; only needed if that discovery doesn't apply.
+  mqtt_host: "str?"
+  mqtt_port: "port?"
+  mqtt_username: "str?"
+  mqtt_password: "password?"
+  route_name: "str"
+  route_origin: "str"
+  route_destination: "str"
+  route_avoid_tolls: "bool"
+  route_poll_interval_minutes: "int(1,1440)"
