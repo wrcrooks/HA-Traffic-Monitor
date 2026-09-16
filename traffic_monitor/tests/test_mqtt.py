@@ -203,3 +203,37 @@ async def test_publish_state_without_connection_does_not_raise():
     publisher = MqttPublisher(MqttConfig(host="broker"), client_factory=FakeMqttClient)
     # never connected -- publisher._client stays None
     await publisher.publish_state(ROUTE, ALTERNATIVE)  # should log and return, not raise
+
+
+# -- last_state cache (backs the M4 ingress UI's /api/routes/status) --------
+
+
+async def test_publish_state_caches_last_state(tmp_path):
+    fake_client = FakeMqttClient()
+    publisher = MqttPublisher(MqttConfig(host="broker"), client_factory=lambda: fake_client)
+    publisher._client = fake_client
+
+    assert publisher.last_state("commute") is None
+    assert publisher.all_last_state() == {}
+
+    await publisher.publish_state(ROUTE, ALTERNATIVE, stale=True, in_active_window=False)
+
+    cached = publisher.last_state("commute")
+    assert cached is not None
+    assert cached["duration_minutes"] == pytest.approx(28.4, abs=0.05)
+    assert cached["stale"] is True
+    assert cached["in_active_window"] is False
+    assert publisher.all_last_state() == {"commute": cached}
+
+
+async def test_clear_route_removes_it_from_last_state():
+    fake_client = FakeMqttClient()
+    publisher = MqttPublisher(MqttConfig(host="broker"), client_factory=lambda: fake_client)
+    publisher._client = fake_client
+    await publisher.publish_state(ROUTE, ALTERNATIVE)
+    assert publisher.last_state("commute") is not None
+
+    await publisher.clear_route(ROUTE)
+
+    assert publisher.last_state("commute") is None
+    assert publisher.all_last_state() == {}

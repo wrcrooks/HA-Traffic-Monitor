@@ -55,12 +55,24 @@ class _FakeMqtt:
     def __init__(self) -> None:
         self.discovery_calls: list[list[str]] = []
         self.cleared: list[str] = []
+        self._last_state: dict[str, dict] = {}
 
     async def publish_discovery(self, routes) -> None:
         self.discovery_calls.append([r.id for r in routes])
 
     async def clear_route(self, route) -> None:
         self.cleared.append(route.id)
+        self._last_state.pop(route.id, None)
+
+    def last_state(self, route_id: str) -> dict | None:
+        return self._last_state.get(route_id)
+
+    def all_last_state(self) -> dict:
+        return dict(self._last_state)
+
+    def set_status(self, route_id: str, payload: dict) -> None:
+        """Test helper -- simulates a poll having happened."""
+        self._last_state[route_id] = payload
 
 
 async def _noop_poll_fn(provider, geocoder, budget, mqtt, route, stop_event) -> None:
@@ -199,6 +211,84 @@ def test_create_route_invalid_poll_interval_rejected(configured_client):
         },
     )
     assert resp.status_code == 422
+
+
+def test_create_route_with_selected_alternative_points_roundtrips(configured_client):
+    points = [{"lat": 30.1, "lon": -95.6}, {"lat": 30.2, "lon": -95.5}]
+    created = configured_client.post(
+        "/api/routes",
+        json={
+            "name": "Pinned",
+            "origin_address": "A",
+            "destination_address": "B",
+            "selected_alternative_points": points,
+        },
+    ).json()
+    assert created["selected_alternative_points"] == points
+
+    fetched = configured_client.get(f"/api/routes/{created['id']}").json()
+    assert fetched["selected_alternative_points"] == points
+
+
+def test_create_route_without_selected_alternative_points_is_null(configured_client):
+    created = configured_client.post(
+        "/api/routes", json={"name": "R", "origin_address": "A", "destination_address": "B"}
+    ).json()
+    assert created["selected_alternative_points"] is None
+
+
+# -- status --------------------------------------------------------------
+
+
+def test_all_route_status_empty_before_any_poll(configured_client):
+    configured_client.post(
+        "/api/routes", json={"name": "R", "origin_address": "A", "destination_address": "B"}
+    )
+    resp = configured_client.get("/api/routes/status")
+    assert resp.status_code == 200
+    assert resp.json() == {}  # created, but the (noop) poller hasn't published anything
+
+
+def test_all_route_status_reflects_mqtt_cache(configured_client):
+    created = configured_client.post(
+        "/api/routes", json={"name": "R", "origin_address": "A", "destination_address": "B"}
+    ).json()
+    app.state.mqtt.set_status(created["id"], {"duration_minutes": 12.3, "stale": False})
+
+    resp = configured_client.get("/api/routes/status")
+    assert resp.json() == {created["id"]: {"duration_minutes": 12.3, "stale": False}}
+
+
+def test_single_route_status_404_for_missing_route(configured_client):
+    resp = configured_client.get("/api/routes/nope/status")
+    assert resp.status_code == 404
+
+
+def test_single_route_status_null_before_first_poll(configured_client):
+    created = configured_client.post(
+        "/api/routes", json={"name": "R", "origin_address": "A", "destination_address": "B"}
+    ).json()
+    resp = configured_client.get(f"/api/routes/{created['id']}/status")
+    assert resp.status_code == 200
+    assert resp.json() is None
+
+
+def test_single_route_status_reflects_mqtt_cache(configured_client):
+    created = configured_client.post(
+        "/api/routes", json={"name": "R", "origin_address": "A", "destination_address": "B"}
+    ).json()
+    app.state.mqtt.set_status(created["id"], {"duration_minutes": 42.0})
+
+    resp = configured_client.get(f"/api/routes/{created['id']}/status")
+    assert resp.json() == {"duration_minutes": 42.0}
+
+
+def test_all_route_status_empty_dict_when_not_configured(unconfigured_client):
+    # Deliberately not a 503 -- an empty status map is a valid, harmless
+    # answer even before MQTT exists, unlike the other endpoints.
+    resp = unconfigured_client.get("/api/routes/status")
+    assert resp.status_code == 200
+    assert resp.json() == {}
 
 
 # -- preview / usage -----------------------------------------------------

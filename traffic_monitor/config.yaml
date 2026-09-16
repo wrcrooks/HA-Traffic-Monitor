@@ -1,6 +1,6 @@
 ---
 name: "Traffic Monitor"
-version: "0.3.0"
+version: "0.4.0"
 slug: "traffic_monitor"
 description: "Monitor drive time and live traffic for routes you define, with a map UI for picking among alternatives."
 url: "https://github.com/wrcrooks/HA-Traffic-Monitor"

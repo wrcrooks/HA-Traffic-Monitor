@@ -156,7 +156,7 @@ def status() -> dict:
     store: RoutesStore | None = getattr(app.state, "store", None)
     return {
         "status": "ok",
-        "version": "0.3.0",
+        "version": "0.4.0",
         "api_key_configured": bool(os.environ.get("TM_API_KEY")),
         "unit_system": os.environ.get("TM_UNIT_SYSTEM", "metric"),
         "mqtt_configured": bool(os.environ.get("TM_MQTT_HOST")),

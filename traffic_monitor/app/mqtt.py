@@ -199,6 +199,10 @@ class MqttPublisher:
         self._unit_system = unit_system
         self._client_factory = client_factory or self._default_client_factory
         self._client: aiomqtt.Client | None = None
+        # Mirrors the last payload published per route, so the ingress UI
+        # (M4) can show "live" status over plain HTTP without needing an
+        # MQTT client in the browser -- see api.py's /api/routes/status.
+        self._last_state: dict[str, dict] = {}
 
     def _default_client_factory(self) -> aiomqtt.Client:
         will = aiomqtt.Will(topic=availability_topic(), payload="offline", qos=1, retain=True)
@@ -274,6 +278,7 @@ class MqttPublisher:
         for metric in _METRICS:
             await self._client.publish(discovery_topic(route.id, metric), "", retain=True)
         await self._client.publish(state_topic(route.id), "", retain=True)
+        self._last_state.pop(route.id, None)
 
     async def publish_state(
         self,
@@ -289,6 +294,13 @@ class MqttPublisher:
         payload = build_state_payload(
             route, alternative, self._unit_system, stale=stale, in_active_window=in_active_window
         )
+        self._last_state[route.id] = payload
         # Retained so a sensor shows its last known value immediately after
         # an HA restart, rather than "unknown" until the next poll.
         await self._client.publish(state_topic(route.id), json.dumps(payload), retain=True)
+
+    def last_state(self, route_id: str) -> dict | None:
+        return self._last_state.get(route_id)
+
+    def all_last_state(self) -> dict[str, dict]:
+        return dict(self._last_state)

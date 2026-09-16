@@ -136,6 +136,14 @@ class Route(BaseModel):
     poll_interval_minutes: int = Field(15, ge=1, le=1440)
     schedule: Schedule = Field(default_factory=Schedule)
     enabled: bool = True
+    selected_alternative_points: list[GeoPoint] | None = None
+    """The polyline of the alternative the user picked in the M4 preview
+    UI, captured here so M5's route pinning (ROADMAP.md section 5) has
+    something to reconstruct against. Not yet consumed by the scheduler
+    -- until M5, every poll still calculates fresh (fastest-by-TomTom's-
+    current-ranking) regardless of what's stored here. None means the
+    user never picked a specific alternative (or picked the default
+    fastest one), which behaves identically to today either way."""
 
 
 class RoutesFile(BaseModel):

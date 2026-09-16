@@ -4,89 +4,98 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <title>Traffic Monitor</title>
-  <style>
-    :root {
-      color-scheme: light dark;
-      --bg: #fafafa;
-      --fg: #1c1c1e;
-      --muted: #6b6b70;
-      --card: #ffffff;
-      --border: #e2e2e5;
-      --accent: #0a7cff;
-    }
-    @media (prefers-color-scheme: dark) {
-      :root {
-        --bg: #17181a;
-        --fg: #f2f2f2;
-        --muted: #9a9a9e;
-        --card: #1f2023;
-        --border: #2c2d30;
-      }
-    }
-    * { box-sizing: border-box; }
-    body {
-      margin: 0;
-      padding-inline: 16px;
-      padding-block: 24px;
-      background: var(--bg);
-      color: var(--fg);
-      font: 14px/1.5 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-    }
-    .card {
-      max-width: 560px;
-      margin: 0 auto;
-      background: var(--card);
-      border: 1px solid var(--border);
-      border-radius: 12px;
-      padding: 20px 24px;
-    }
-    h1 { font-size: 18px; margin: 0 0 4px; }
-    p.subtitle { color: var(--muted); margin: 0 0 20px; }
-    dl { margin: 0; }
-    dt { color: var(--muted); font-size: 12px; text-transform: uppercase; letter-spacing: .03em; margin-top: 12px; }
-    dd { margin: 2px 0 0; font-size: 14px; }
-    .pill {
-      display: inline-block;
-      padding: 2px 8px;
-      border-radius: 999px;
-      font-size: 12px;
-      font-weight: 600;
-    }
-    .pill.ok { background: #d7f5df; color: #146c2e; }
-    .pill.warn { background: #fdecc8; color: #8a5a00; }
-    @media (prefers-color-scheme: dark) {
-      .pill.ok { background: #123a20; color: #6fe39a; }
-      .pill.warn { background: #3a2c0c; color: #f0c064; }
-    }
-  </style>
+  <!-- Relative paths only, no leading slash -- see js/api.js for why.
+       "static/" prefix because main.py mounts StaticFiles at /static;
+       the API routes and this page itself stay unprefixed. -->
+  <link rel="stylesheet" href="static/vendor/leaflet/leaflet.css">
+  <link rel="stylesheet" href="static/styles.css">
 </head>
 <body>
-  <div class="card">
+  <div class="container">
     <h1>Traffic Monitor</h1>
-    <p class="subtitle">Milestone M0 &mdash; scaffold running. Route configuration and the map UI land in later milestones.</p>
-    <dl id="fields"></dl>
+    <div id="config-banner" class="config-banner" hidden></div>
+    <div id="usage-bar" class="usage-bar" hidden>
+      <div class="usage-track"><div id="usage-fill" class="usage-fill"></div></div>
+      <span id="usage-label" class="usage-label"></span>
+    </div>
+
+    <!-- Route list view -->
+    <section id="view-list">
+      <div class="list-header">
+        <span class="muted" id="route-count-label"></span>
+        <button id="btn-add-route" class="btn-primary">+ Add Route</button>
+      </div>
+      <div id="route-list" class="route-list"></div>
+      <div id="empty-state" class="empty-state" hidden>
+        No routes yet. Add one to start monitoring drive time and traffic.
+      </div>
+    </section>
+
+    <!-- Add/edit route view -->
+    <section id="view-editor" hidden>
+      <div class="editor-header">
+        <h2 id="editor-title" style="margin:0;font-size:16px;">Add Route</h2>
+        <button id="btn-cancel-editor" class="btn-icon" title="Back to list">&times;</button>
+      </div>
+
+      <form id="route-form">
+        <div class="form-row">
+          <label for="field-name">Name</label>
+          <input type="text" id="field-name" placeholder="e.g. Morning Commute" required>
+        </div>
+        <div class="form-row">
+          <label for="field-origin">Origin address</label>
+          <input type="text" id="field-origin" placeholder="123 Main St, Anytown" required>
+        </div>
+        <div class="form-row">
+          <label for="field-destination">Destination address</label>
+          <input type="text" id="field-destination" placeholder="456 Oak Ave, Anytown" required>
+        </div>
+        <div class="form-row checkbox-row">
+          <input type="checkbox" id="field-avoid-tolls">
+          <label for="field-avoid-tolls" style="margin:0;">Avoid toll roads</label>
+        </div>
+        <div class="form-row">
+          <label for="field-poll-interval">Poll interval (minutes)</label>
+          <input type="number" id="field-poll-interval" min="1" max="1440" value="15">
+        </div>
+        <div class="form-row checkbox-row">
+          <input type="checkbox" id="field-enabled" checked>
+          <label for="field-enabled" style="margin:0;">Enabled</label>
+        </div>
+
+        <div class="form-row">
+          <label>Active on</label>
+          <div id="schedule-days" class="schedule-days"></div>
+        </div>
+        <div class="form-row">
+          <label>Active time windows (leave empty to poll all day)</label>
+          <div id="schedule-windows" class="schedule-windows"></div>
+          <button type="button" id="btn-add-window" class="btn-secondary">+ Add time window</button>
+          <p class="schedule-hint">
+            A route is only polled inside its active windows -- this is what lets many routes
+            fit inside TomTom's free monthly quota. No windows means always active.
+          </p>
+        </div>
+
+        <div class="preview-section">
+          <button type="button" id="btn-preview" class="btn-secondary">Preview route</button>
+          <div id="preview-error" class="preview-error" hidden></div>
+          <div id="preview-map"></div>
+          <div id="alternatives-list" class="alternatives-list"></div>
+        </div>
+
+        <div class="form-actions">
+          <button type="submit" id="btn-save" class="btn-primary">Save route</button>
+          <button type="button" id="btn-delete-in-editor" class="btn-secondary btn-danger" hidden>Delete route</button>
+        </div>
+      </form>
+    </section>
   </div>
-  <script>
-    fetch('api/status')
-      .then(r => r.json())
-      .then(data => {
-        const dl = document.getElementById('fields');
-        const rows = [
-          ['Status', data.status],
-          ['Version', data.version],
-          ['TomTom API key', data.api_key_configured
-            ? '<span class="pill ok">configured</span>'
-            : '<span class="pill warn">not set</span>'],
-          ['MQTT', data.mqtt_configured
-            ? '<span class="pill ok">detected</span>'
-            : '<span class="pill warn">not detected</span>'],
-          ['Unit system', data.unit_system],
-        ];
-        dl.innerHTML = rows.map(([k, v]) => `<dt>${k}</dt><dd>${v}</dd>`).join('');
-      })
-      .catch(() => {
-        document.getElementById('fields').innerHTML = '<dt>Status</dt><dd><span class="pill warn">API unreachable</span></dd>';
-      });
-  </script>
+
+  <script src="static/vendor/leaflet/leaflet.js"></script>
+  <script src="static/js/api.js"></script>
+  <script src="static/js/map.js"></script>
+  <script src="static/js/app.js"></script>
 </body>
 </html>

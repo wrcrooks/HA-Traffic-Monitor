@@ -1,5 +1,55 @@
 # Changelog
 
+## 0.4.0
+
+- Ingress UI (M4): the add-on now has a real UI, replacing raw API calls
+  as the way to manage routes. Vanilla JS + Leaflet, no build step,
+  Leaflet vendored locally rather than pulled from a CDN. Every asset
+  reference and API call uses a purely relative path (no leading slash)
+  since Home Assistant serves ingress add-ons under a per-session token
+  prefix that only relative-URL resolution respects correctly.
+  - Route list with live status (duration/delay/distance/traffic-level
+    badge), an inline disable/enable toggle, edit and delete.
+  - Add/edit form with a day-of-week + time-window schedule editor.
+  - "Preview route" calls the real routing API and draws every
+    alternative on a Leaflet/OSM map -- the selected one highlighted,
+    others muted -- with a matching list underneath; clicking either the
+    map or the list re-picks which alternative is highlighted.
+  - A monthly API usage bar (color-coded at the warning/exhausted
+    thresholds) and a banner when the API key or MQTT isn't set up yet.
+  - Dark-mode-aware (`prefers-color-scheme`) and usable down to ~400px.
+- New `app.models.Route.selected_alternative_points`: the polyline of
+  whichever alternative the user picked in the preview, captured now so
+  M5's route pinning has something to reconstruct against. Not yet
+  consumed by the scheduler -- until M5, every poll still calculates
+  fresh regardless of what's stored here.
+- New `GET /api/routes/status` and `GET /api/routes/{id}/status`: the
+  last-published state for one or all routes, backed by a small cache
+  `MqttPublisher` now keeps of every payload it publishes. This is what
+  lets the ingress UI show "live" status over plain HTTP without an MQTT
+  client in the browser -- reusing the exact same payload MQTT sees, not
+  a second implementation of it.
+- 10 new offline tests (the status cache, the new endpoints,
+  `selected_alternative_points` round-tripping through the API).
+  101/101 total pass offline.
+
+Verified in a real headless browser (Playwright), not just curl: drove
+the actual running app through creating a route end to end -- opened the
+form, filled in the user's real commute addresses, clicked "Preview
+route" (a genuine TomTom API call), confirmed 6 alternatives rendered as
+distinct polylines on the map with a matching list, clicked a different
+alternative and confirmed both the map and the list highlight moved
+together, saved, and confirmed the new route appeared in the list with
+its live status once polled. Zero browser console errors. This caught a
+real bug before it shipped: every asset reference in the HTML was
+missing the `static/` prefix main.py actually mounts static files under,
+so nothing but the page shell itself loaded (fixed by correcting the
+references, not by changing the server's routing). A second real bug --
+a CSS flex-basis that meant something different once a mobile media
+query switched `.route-card` to a column layout, visibly inflating every
+card -- was caught from screenshots and fixed, then re-verified with
+another real run.
+
 ## 0.3.0
 
 - Multi-route config and scheduling (M3): routes are now managed through a

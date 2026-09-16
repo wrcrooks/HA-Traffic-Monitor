@@ -16,7 +16,7 @@ from __future__ import annotations
 from fastapi import APIRouter, HTTPException, Request
 from pydantic import BaseModel, Field
 
-from app.models import Route, RouteCalculation, Schedule
+from app.models import GeoPoint, Route, RouteCalculation, Schedule
 from app.providers.base import ProviderError
 from app.routes_store import new_route_id
 
@@ -34,6 +34,7 @@ class RouteWrite(BaseModel):
     poll_interval_minutes: int = Field(15, ge=1, le=1440)
     schedule: Schedule = Field(default_factory=Schedule)
     enabled: bool = True
+    selected_alternative_points: list[GeoPoint] | None = None
 
 
 class PreviewRequest(BaseModel):
@@ -71,12 +72,35 @@ async def create_route(body: RouteWrite, request: Request) -> Route:
         raise HTTPException(409, str(exc)) from exc
 
 
+# Registered before GET /routes/{route_id} -- Starlette matches routes in
+# registration order, and "status" would otherwise be captured as a
+# route_id by the path-param route below.
+@router.get("/routes/status")
+def all_route_status(request: Request) -> dict:
+    """Last-published state for every route, keyed by route id, so the
+    ingress UI (M4) can show live status over plain HTTP without an MQTT
+    client in the browser. Mirrors MQTT exactly -- see MqttPublisher.
+    A route with no entry yet simply hasn't completed its first poll."""
+    mqtt = getattr(request.app.state, "mqtt", None)
+    if mqtt is None:
+        return {}
+    return mqtt.all_last_state()
+
+
 @router.get("/routes/{route_id}", response_model=Route)
 def get_route(route_id: str, request: Request) -> Route:
     route = _require_store(request).get(route_id)
     if route is None:
         raise HTTPException(404, f"No route {route_id!r}")
     return route
+
+
+@router.get("/routes/{route_id}/status")
+def route_status(route_id: str, request: Request) -> dict | None:
+    if _require_store(request).get(route_id) is None:
+        raise HTTPException(404, f"No route {route_id!r}")
+    mqtt = getattr(request.app.state, "mqtt", None)
+    return mqtt.last_state(route_id) if mqtt is not None else None
 
 
 @router.put("/routes/{route_id}", response_model=Route)

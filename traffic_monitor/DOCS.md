@@ -11,21 +11,19 @@ of several suggested routes you actually drive.
 3. Make sure an MQTT broker is running (the **Mosquitto broker** add-on works) and
    the MQTT integration is set up in Home Assistant. Traffic Monitor discovers it
    automatically and does not need separate MQTT settings.
-4. Start the add-on.
-5. v0.3 manages routes through an API (`/api/routes`) rather than a UI &mdash;
-   a proper ingress UI with a map for picking among suggested alternatives
-   arrives in a later release. Until then, add a route with:
-   ```
-   curl -X POST http://<home-assistant>:8099/api/routes \
-     -H "Content-Type: application/json" \
-     -d '{"name": "My Commute", "origin_address": "...", "destination_address": "...", "avoid_tolls": false}'
-   ```
-   (adjust the host/port for how you reach the add-on's ingress). Within a minute
-   or so you'll see a new device (named after your route) with 7 sensors under
+4. Start the add-on and open **Traffic Monitor** from the sidebar.
+5. Click **+ Add Route**, fill in a name and your origin/destination addresses,
+   click **Preview route** to see alternatives on the map, click one to pick it
+   (or leave the fastest one selected), then **Save route**. Within a minute or
+   so you'll see a new device (named after your route) with 7 sensors under
    **Settings &rarr; Devices & Services &rarr; MQTT**.
 
+The `/api/routes` API below still works directly if you'd rather script it.
+
 See the project [ROADMAP](https://github.com/wrcrooks/HA-Traffic-Monitor/blob/main/ROADMAP.md)
-for what's coming next.
+for what's coming next -- notably, picking a non-default alternative in the UI
+doesn't yet make that specific route "stick" through changing traffic
+conditions; that's route pinning, arriving in M5.
 
 ## Configuration options
 
@@ -45,6 +43,7 @@ for what's coming next.
 | `POST` | `/api/routes` | Create a route. Body: `name`, `origin_address`, `destination_address`, `avoid_tolls`, `poll_interval_minutes` (1-1440), `schedule` (`{"days": [0-6, Mon=0], "windows": [{"start": "HH:MM", "end": "HH:MM"}]}`, omit for "always active"), `enabled`. |
 | `GET` / `PUT` / `DELETE` | `/api/routes/{id}` | Fetch, replace, or remove a single route. Deleting removes its entities from HA immediately. |
 | `POST` | `/api/routes/preview` | Geocode + calculate a route (with alternatives and full geometry) without saving it. Spends API budget like a real poll. |
+| `GET` | `/api/routes/status` / `/api/routes/{id}/status` | Last-published live state for one or all routes -- what the UI's route list reads. |
 | `GET` | `/api/usage` | Current TomTom API budget: `used_30d`, `remaining`, `monthly_limit`, `usage_ratio`, `warning`, `exhausted`. |
 
 ## Entities
