@@ -1,4 +1,4 @@
-ARG BUILD_FROM=ghcr.io/home-assistant/base-python:3.13-alpine3.20
+ARG BUILD_FROM=ghcr.io/home-assistant/base-python:3.12-alpine3.24
 FROM ${BUILD_FROM}
 
 # Home Assistant base-python images already provide Python, s6-overlay and bashio.
