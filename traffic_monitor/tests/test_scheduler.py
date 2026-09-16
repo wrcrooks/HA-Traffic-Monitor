@@ -1,16 +1,24 @@
 from __future__ import annotations
 
 import asyncio
-
-import pytest
+from datetime import datetime
 
 from app.budget import BudgetGuard
-from app.models import GeocodeResult, GeoPoint, RouteAlternative, RouteCalculation, RouteConfig, RouteSummary
+from app.models import (
+    GeocodeResult,
+    GeoPoint,
+    Route,
+    RouteAlternative,
+    RouteCalculation,
+    RouteSummary,
+    Schedule,
+    TimeWindow,
+)
 from app.providers.base import ProviderError
-from app.scheduler import _poll_once, poll_forever
+from app.scheduler import _poll_once, poll_route_forever
 
-ROUTE = RouteConfig(
-    route_id="commute",
+ROUTE = Route(
+    id="commute",
     name="My Commute",
     origin_address="origin address",
     destination_address="destination address",
@@ -47,98 +55,119 @@ class _FakeGeocoder:
 
 class _FakeMqtt:
     def __init__(self) -> None:
-        self.published: list[tuple[RouteConfig, RouteAlternative]] = []
+        self.published: list[tuple] = []  # (route, alternative, stale, in_active_window)
 
-    async def publish_state(self, route: RouteConfig, alternative: RouteAlternative) -> None:
-        self.published.append((route, alternative))
+    async def publish_state(self, route, alternative, *, stale=False, in_active_window=True):
+        self.published.append((route, alternative, stale, in_active_window))
 
 
 def _calc_with_one_route() -> RouteCalculation:
-    from datetime import datetime
-
     return RouteCalculation(
         routes=[RouteAlternative(index=0, summary=SUMMARY)], queried_at=datetime.now().astimezone()
     )
 
 
-# -- _poll_once ----------------------------------------------------------
+# -- _poll_once ------------------------------------------------------------
 
 
-async def test_poll_once_publishes_and_records_budget(tmp_path):
+async def test_poll_once_returns_alternative_and_records_budget(tmp_path):
     provider = _FakeProvider(calc=_calc_with_one_route())
     budget = BudgetGuard(path=tmp_path / "usage.json", monthly_limit=100)
-    mqtt = _FakeMqtt()
 
-    await _poll_once(provider, budget, mqtt, ROUTE, GeoPoint(lat=1, lon=2), GeoPoint(lat=3, lon=4))
+    result = await _poll_once(provider, budget, ROUTE, GeoPoint(lat=1, lon=2), GeoPoint(lat=3, lon=4))
 
     assert provider.calls == 1
     assert budget.used() == 1
-    assert len(mqtt.published) == 1
-    assert mqtt.published[0][0] == ROUTE
+    assert result is not None
+    assert result.summary.duration_seconds == 1702
 
 
-async def test_poll_once_skips_when_budget_exhausted(tmp_path):
+async def test_poll_once_returns_none_when_budget_exhausted(tmp_path):
     provider = _FakeProvider(calc=_calc_with_one_route())
     budget = BudgetGuard(path=tmp_path / "usage.json", monthly_limit=1)
     budget.record(1)  # already exhausted
-    mqtt = _FakeMqtt()
 
-    await _poll_once(provider, budget, mqtt, ROUTE, GeoPoint(lat=1, lon=2), GeoPoint(lat=3, lon=4))
+    result = await _poll_once(provider, budget, ROUTE, GeoPoint(lat=1, lon=2), GeoPoint(lat=3, lon=4))
 
     assert provider.calls == 0  # never even called the provider
-    assert len(mqtt.published) == 0
+    assert result is None
 
 
-async def test_poll_once_swallows_provider_errors(tmp_path):
+async def test_poll_once_returns_none_on_provider_error(tmp_path):
     provider = _FakeProvider(error=ProviderError("boom"))
     budget = BudgetGuard(path=tmp_path / "usage.json", monthly_limit=100)
-    mqtt = _FakeMqtt()
 
     # Must not raise -- a single bad poll should not kill the loop.
-    await _poll_once(provider, budget, mqtt, ROUTE, GeoPoint(lat=1, lon=2), GeoPoint(lat=3, lon=4))
+    result = await _poll_once(provider, budget, ROUTE, GeoPoint(lat=1, lon=2), GeoPoint(lat=3, lon=4))
 
-    assert len(mqtt.published) == 0
+    assert result is None
     assert budget.used() == 0  # a failed call was not recorded as spent quota
 
 
-# -- poll_forever ----------------------------------------------------------
+# -- poll_route_forever ------------------------------------------------------
 
 
-async def test_poll_forever_stops_geocoding_failure_without_polling(tmp_path):
+async def test_poll_route_forever_stops_on_geocoding_failure_without_polling(tmp_path):
     provider = _FakeProvider(calc=_calc_with_one_route())
     geocoder = _FakeGeocoder(fail=True)
     budget = BudgetGuard(path=tmp_path / "usage.json", monthly_limit=100)
     mqtt = _FakeMqtt()
     stop_event = asyncio.Event()
 
-    await poll_forever(provider, geocoder, budget, mqtt, ROUTE, interval_seconds=1, stop_event=stop_event)
+    await poll_route_forever(provider, geocoder, budget, mqtt, ROUTE, stop_event)
 
     assert provider.calls == 0
     assert len(mqtt.published) == 0
 
 
-async def test_poll_forever_polls_once_immediately_then_stops():
+async def test_poll_route_forever_polls_once_immediately_publishes_fresh(tmp_path):
     provider = _FakeProvider(calc=_calc_with_one_route())
     geocoder = _FakeGeocoder()
     mqtt = _FakeMqtt()
     stop_event = asyncio.Event()
+    route = ROUTE.model_copy(update={"poll_interval_minutes": 60})  # long interval
 
     async def stop_soon():
         await asyncio.sleep(0.05)
         stop_event.set()
 
-    import tempfile
-    from pathlib import Path
-
-    with tempfile.TemporaryDirectory() as tmp:
-        budget = BudgetGuard(path=Path(tmp) / "usage.json", monthly_limit=100)
-        stopper = asyncio.create_task(stop_soon())
-        # Long interval -- if poll_forever didn't poll immediately on entry,
-        # this test would time out waiting for a second cycle instead.
-        await poll_forever(
-            provider, geocoder, budget, mqtt, ROUTE, interval_seconds=3600, stop_event=stop_event
-        )
-        await stopper
+    budget = BudgetGuard(path=tmp_path / "usage.json", monthly_limit=100)
+    stopper = asyncio.create_task(stop_soon())
+    await poll_route_forever(provider, geocoder, budget, mqtt, route, stop_event)
+    await stopper
 
     assert provider.calls == 1
     assert len(mqtt.published) == 1
+    _, alt, stale, in_window = mqtt.published[0]
+    assert stale is False
+    assert in_window is True
+    assert alt.summary.duration_seconds == 1702
+
+
+async def test_poll_route_forever_outside_window_publishes_last_result_as_stale(tmp_path):
+    """A route with a window that's never active right now should never
+    call the provider, but if it already has a last-known result (it
+    doesn't here, so nothing should publish at all)."""
+    provider = _FakeProvider(calc=_calc_with_one_route())
+    geocoder = _FakeGeocoder()
+    mqtt = _FakeMqtt()
+    stop_event = asyncio.Event()
+    # A window that can never be active: no days at all.
+    route = ROUTE.model_copy(
+        update={
+            "poll_interval_minutes": 60,
+            "schedule": Schedule(days=[], windows=[TimeWindow(start="00:00", end="23:59")]),
+        }
+    )
+
+    async def stop_soon():
+        await asyncio.sleep(0.05)
+        stop_event.set()
+
+    budget = BudgetGuard(path=tmp_path / "usage.json", monthly_limit=100)
+    stopper = asyncio.create_task(stop_soon())
+    await poll_route_forever(provider, geocoder, budget, mqtt, route, stop_event)
+    await stopper
+
+    assert provider.calls == 0  # never polled -- always outside its window
+    assert len(mqtt.published) == 0  # and never had a result to (re)publish either

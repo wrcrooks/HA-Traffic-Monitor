@@ -1,6 +1,6 @@
 ---
 name: "Traffic Monitor"
-version: "0.2.0"
+version: "0.3.0"
 slug: "traffic_monitor"
 description: "Monitor drive time and live traffic for routes you define, with a map UI for picking among alternatives."
 url: "https://github.com/wrcrooks/HA-Traffic-Monitor"
@@ -23,11 +23,13 @@ options:
   api_key: ""
   unit_system: "metric"
   log_level: "info"
-  # M2 placeholder: one hardcoded route, until M3 replaces this with the
-  # full multi-route UI backed by /data/routes.json (see ROADMAP.md).
+  # Routes are managed via the /api/routes API (persisted in
+  # /data/routes.json) from M3 onward, not through these options -- see
+  # ROADMAP.md. These remain only as a one-time convenience: if set on
+  # first boot (and routes.json is still empty), they're migrated into a
+  # real route automatically so an M2 install doesn't lose its route on
+  # upgrade. Safe to leave blank.
   route_name: "My Commute"
-  route_origin: null
-  route_destination: null
   route_avoid_tolls: false
   route_poll_interval_minutes: 15
 schema:
@@ -41,7 +43,7 @@ schema:
   mqtt_username: "str?"
   mqtt_password: "password?"
   route_name: "str"
-  route_origin: "str"
-  route_destination: "str"
+  route_origin: "str?"
+  route_destination: "str?"
   route_avoid_tolls: "bool"
   route_poll_interval_minutes: "int(1,1440)"

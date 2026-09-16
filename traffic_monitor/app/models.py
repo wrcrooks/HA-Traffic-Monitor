@@ -6,7 +6,7 @@ from TomTom's JSON shape onto these types.
 """
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import datetime, time
 from enum import Enum
 
 from pydantic import BaseModel, Field
@@ -91,14 +91,58 @@ class RouteCalculation(BaseModel):
     queried_at: datetime
 
 
-class RouteConfig(BaseModel):
-    """M2's temporary single-route config, sourced directly from add-on
-    options. Replaced by the multi-route /data/routes.json model in M3
-    (ROADMAP.md) -- route_id will become a generated slug rather than a
-    fixed constant once there can be more than one."""
+class TimeWindow(BaseModel):
+    """An active-polling window on a single day. `start` must be <= `end`
+    -- windows spanning midnight aren't supported in v1 (ROADMAP.md
+    section 2); model two windows instead (e.g. 22:00-23:59 and
+    00:00-02:00) if that's ever needed."""
 
-    route_id: str
+    start: time
+    end: time
+
+
+class Schedule(BaseModel):
+    """When a route should actually be polled (ROADMAP.md section 2's API
+    budget discussion -- this is what makes many routes fit inside
+    TomTom's free tier). An empty `windows` list means "always active";
+    that's the default so a route works with no configuration beyond an
+    origin/destination.
+
+    `days` uses Python's Monday=0 convention (datetime.weekday()).
+    """
+
+    days: list[int] = Field(default_factory=lambda: [0, 1, 2, 3, 4])
+    windows: list[TimeWindow] = Field(default_factory=list)
+
+    def is_active(self, at: datetime) -> bool:
+        if not self.windows:
+            return True
+        if at.weekday() not in self.days:
+            return False
+        t = at.time()
+        return any(w.start <= t <= w.end for w in self.windows)
+
+
+class Route(BaseModel):
+    """A user-configured route (ROADMAP.md M3), persisted in
+    /data/routes.json via RoutesStore. Replaces M2's single hardcoded
+    RouteConfig sourced from add-on options."""
+
+    id: str
     name: str
     origin_address: str
     destination_address: str
     avoid_tolls: bool = False
+    poll_interval_minutes: int = Field(15, ge=1, le=1440)
+    schedule: Schedule = Field(default_factory=Schedule)
+    enabled: bool = True
+
+
+class RoutesFile(BaseModel):
+    """The on-disk shape of /data/routes.json. schema_version exists from
+    day one, before any migration is actually needed, so the migration
+    mechanism itself (see routes_store.py) is exercised and tested well
+    before a real schema change ever depends on it."""
+
+    schema_version: int = 1
+    routes: list[Route] = Field(default_factory=list)
